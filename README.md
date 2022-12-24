@@ -72,6 +72,7 @@ cmake --build . --config Release
 Mehmet Melih Koşucu,		Istanbul Technical University
 Mehmet Cüneyd Demirel,		Istanbul Technical University
 Mustafa Alper Özdemir,		Istanbul Technical University
+Ufuk Bal,			Istanbul Technical University
 ```
 ## References
 
