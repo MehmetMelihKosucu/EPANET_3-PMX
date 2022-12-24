@@ -59,6 +59,8 @@ Please note that there are four PM methods in the literature whose names are 1. 
 	input.inp report.rpt
 
 	```
+4. If a user would analyze another WDSs hydraulics, lines 81, 82, 84, 141-151, 153, and 156 in core/epanet3.cpp file should also be modified.
+
 
 ## Building
 To build, use CMake on Windows with Visual Studio (tested with Visual Studio 2013 and validated with 2019):
