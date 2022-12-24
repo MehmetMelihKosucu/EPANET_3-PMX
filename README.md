@@ -13,30 +13,32 @@ Please note that there are four PM methods in the literature whose names are 1. 
 	```
 	[VALVES]
 	;ID		Node1		Node2	Diameter	Type		PM_Type		Setting
-	1		2010		1		400			DPRV		FO			42.5  ;
+	1		2010		1	400		DPRV		FO		42.5  ;
 	```
 
 - For Time Modulated PM, add:
 	```
 	[VALVES]
 	;ID		Node1		Node2	Diameter	Type  PM_Type  Day_Pressure  Night_Pressure
-	1		2010		1		400			DPRV	TM		42.5			25.5  ;
+	1		2010		1	400		DPRV	TM	42.5		25.5  ;
 	```
 - For Flow Modulated PM, add:
 	```
 	[VALVES]
-	;ID		Node1		Node2	Diameter	Type  PM_Type		a_FM		b_FM	c_FM
-	1		2010		1		400			DPRV	FM		0.00037110	0.00222011	25.17888967 ;
+	;ID		Node1		Node2	Diameter	Type  PM_Type		a_FM		b_FM		c_FM
+	1		2010		1	400		DPRV	FM		0.00037110	0.00222011	25.17888967 ;
 	```
 
 - For Remote Node Modulated PM, add:
 	```
 	[VALVES]
 	;ID		Node1		Node2	Diameter	Type	PM_Type		Remote_Node_Pressure	Remote_Node
-	1		2010		1		400			DPRV	RNM				20						13150  ;
+	1		2010		1	400		DPRV	RNM			20		13150  ;
 	```
 	All the numbers above vary from one WDS to the other WDS. Implementing four PM methods depends on the valve settings on the EPANET input file.
-2. Modify lines 74 and 76 in `Core/epanet3.cpp` if the result files are wished to be saved in another location. The default location is the path where the program was run. 
+2. Modify lines 74 and 76 in `Core/epanet3.cpp` if the result files are wished to be saved in another location. The default location is the path where the program was run. Result files are in txt format. There are two result files:
+	1. hk-Result.txt: This file contains pressure and flow rates of the WDS inlet pipe and total leakage.
+	2. Xm-Result.txt: This file includes PRV main element opening ratio.
 3. To run the command line executable under Linux/Mac enter the following command from a terminal window:
 
 	```
