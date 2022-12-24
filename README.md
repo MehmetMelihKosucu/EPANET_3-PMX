@@ -69,7 +69,7 @@ cmake --build . --config Release
 ```
 ## Contributors
 Mehmet Melih Koşucu,		Istanbul Technical University
-Mehmet Cüneyd Demirel,	Istanbul Technical University
+Mehmet Cüneyd Demirel,		Istanbul Technical University
 Mustafa Alper Özdemir,		Istanbul Technical University
 
 ## References
