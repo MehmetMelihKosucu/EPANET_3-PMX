@@ -37,7 +37,7 @@ Please note that there are four PM methods in the literature whose names are 1. 
 	```
 	All the numbers above vary from one WDS to the other WDS. Implementing four PM methods depends on the valve settings on the EPANET input file.
 2. Modify lines 74 and 76 in `Core/epanet3.cpp` if the result files are wished to be saved in another location. The default location is the path where the program was run. Result files are in txt format. There are two result files:
-	1. hk-Result.txt: This file contains pressure and flow rates of the WDS inlet pipe and total leakage.
+	1. hk-Result.txt: This file contains pressure values of significant WDS nodes, and flow rates of the WDS inlet pipe and total leakage.
 	2. Xm-Result.txt: This file includes PRV main element opening ratio.
 3. To run the command line executable under Linux/Mac enter the following command from a terminal window:
 
