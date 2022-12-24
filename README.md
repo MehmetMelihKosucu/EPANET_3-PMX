@@ -68,10 +68,11 @@ cmake -G "Visual Studio n yyyy" ..
 cmake --build . --config Release
 ```
 ## Contributors
+```
 Mehmet Melih Koşucu,		Istanbul Technical University
 Mehmet Cüneyd Demirel,		Istanbul Technical University
 Mustafa Alper Özdemir,		Istanbul Technical University
-
+```
 ## References
 
 Koşucu, M. M., & Demirel, M. C. (2022). Smart pressure management extension for EPANET: source code enhancement with a dynamic pressure reducing valve model. _Journal of Hydroinformatics_, _24_(3), 642–658. https://doi.org/10.2166/hydro.2022.172
