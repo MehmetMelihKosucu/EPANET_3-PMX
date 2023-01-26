@@ -1,4 +1,4 @@
-/* EPANET 3
+/* EPANET 3.1.1 Pressure Management Extension
  *
  * Copyright (c) 2016 Open Water Analytics
  * Licensed under the terms of the MIT License (see the LICENSE file for details).
@@ -88,7 +88,6 @@ class ChemModel : public QualModel
     double  massTransCoeff;   // a pipe's mass transfer coeff. (ft/sec)
     double  pipeUcf;          // volume conversion factor for pipes
     double  tankUcf;          // volume conversion factor for tanks
-    double  wallUcf;          // wall reaction coefficient conversion factor for pipes
     double  cLimit;           // min/max concentration limit (mass/ft3)
 
     bool    setReactive(Network* nw);

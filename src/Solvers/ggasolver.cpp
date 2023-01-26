@@ -1,4 +1,4 @@
-/* EPANET 3
+/* EPANET 3.1.1 Pressure Management Extension
  *
  * Copyright (c) 2016 Open Water Analytics
  * Distributed under the MIT License (see the LICENSE file for details).
@@ -6,12 +6,9 @@
  */
 
  ////////////////////////////////////////////////////////////////////////
- //  Implementation of the Global Gradient Algorithm hydraulic solver  //
+ //  Implementation of the Global Gradient Algorithm hydraulic solver and Convergence Tracking Control Method  //
  ////////////////////////////////////////////////////////////////////////
 
- // TO DO:
- // - implement the line search procedure and consider moving it to
- //   its own module so it can be used by other solvers
 
 #include "ggasolver.h"
 #include "matrixsolver.h"
@@ -21,6 +18,7 @@
 #include "Elements/junction.h"
 #include "Elements/tank.h"
 #include "Elements/link.h"
+#include "Elements/valve.h"
 
 #include <cstring>
 #include <cmath>
@@ -51,7 +49,7 @@ static const double ErrorThreshold = 1.0;
 static const double Huge = numeric_limits<double>::max();
 
 // step sizing enumeration
-enum StepSizing {FULL, RELAXATION, LINESEARCH};
+enum StepSizing {FULL, RELAXATION, LINESEARCH, BRF, ARF};
 
 //-----------------------------------------------------------------------------
 
@@ -81,6 +79,10 @@ GGASolver::GGASolver(Network* nw, MatrixSolver* ms) : HydSolver(nw, ms)
         stepSizing = RELAXATION;
     else if (network->option(Options::STEP_SIZING) == "LINESEARCH" )
         stepSizing = LINESEARCH;
+	else if (network->option(Options::STEP_SIZING) == "BRF")
+		stepSizing = BRF;
+	else if (network->option(Options::STEP_SIZING) == "ARF")
+		stepSizing = ARF;
     else stepSizing = FULL;
 
     errorNorm     = 0.0;
@@ -102,7 +104,7 @@ GGASolver::~GGASolver()
 
 //  Solve network for heads and flows
 
-int GGASolver::solve(double tstep_, int& trials)
+int GGASolver::solve(double tstep_, int& trials, int currentTime)
 {
     // ... initialize variables
 
@@ -120,6 +122,9 @@ int GGASolver::solve(double tstep_, int& trials)
     theta = network->option(Options::TIME_WEIGHT);
     theta = min(theta, 1.0);
     if ( theta > 0.0 ) theta = max(theta, 0.5);
+
+	minErrorNorm = 1000000000;
+	dl = 1.0;
 
     // ... set values for convergence limits
 
@@ -141,44 +146,129 @@ int GGASolver::solve(double tstep_, int& trials)
 
         if ( statusChanged )
         {
-            oldErrorNorm = findErrorNorm(0.0);
+			oldErrorNorm = findErrorNorm(0.0, currentTime, tstep);
             lamda = 1.0;
         }
         statusChanged = false;
+		dl = 1.000000000000000;
 
-        // ... find changes in heads and flows
+		int errorCode = findHeadChanges();
+		if (errorCode >= 0)
+		{
+			Node* node = network->node(errorCode);
+			network->msgLog << endl << s_IllConditioned << node->name;
+			return HydSolver::FAILED_ILL_CONDITIONED;
+		}
+		findFlowChanges();
 
-        int errorCode = findHeadChanges();
-        if ( errorCode >= 0 )
-        {
-       	    Node* node = network->node(errorCode);
-            network->msgLog << endl << s_IllConditioned << node->name;
-            return HydSolver::FAILED_ILL_CONDITIONED;
-        }
-        findFlowChanges();
+		if (stepSizing == ARF)
+		{
+			double lamda = 1.0;
+			errorNorm = findErrorNorm(lamda, currentTime, tstep);
+			updateSolution(lamda);
 
-        // ... find step size to take for head/flow changes
-        //     (which evaluates new gradients for next trial)
+			if (errorNorm < oldErrorNorm)
+			{
+				if (reportTrials) reportTrial(trials, lamda);
+				converged = hasConverged();
 
-        lamda = findStepSize(trials);
-        updateSolution(lamda);
+				// ... if close to convergence then check for any link status changes
 
-        // ... check for convergence
+				if (converged) //|| errorNorm < ErrorThreshold )
+				{
+					statusChanged = linksChangedStatus();
+				}
 
-        if ( reportTrials ) reportTrial(trials, lamda);
-        converged = hasConverged();
+				// ... check if the current solution can be accepted
 
-        // ... if close to convergence then check for any link status changes
+				if (converged && !statusChanged) break;
+				trials++;
+			}
+			else
+			{
+				// ... find changes in heads and flows
+				int errorCode = findHeadChanges();
+				if (errorCode >= 0)
+				{
+					Node* node = network->node(errorCode);
+					network->msgLog << endl << s_IllConditioned << node->name;
+					return HydSolver::FAILED_ILL_CONDITIONED;
+				}
+				findFlowChanges(); // */
+				int counter = 0;
+				while (minErrorNorm >= oldErrorNorm)
+				{
+					dl *= 0.25;
+					if (dl < 0.001) break;
+					lamda = findStepSize(trials, currentTime);
+					updateSolution(lamda);
+					errorNorm = minErrorNorm;
+				}
+				if (reportTrials) reportTrial(trials, lamda);
+				converged = hasConverged();
 
-        if ( converged ) //|| errorNorm < ErrorThreshold )
-        {
-            statusChanged = linksChangedStatus();
-        }
+				// ... if close to convergence then check for any link status changes
 
-        // ... check if the current solution can be accepted
+				if (converged) //|| errorNorm < ErrorThreshold )
+				{
+					statusChanged = linksChangedStatus();
+				}
 
-        if ( converged && !statusChanged ) break;
-        trials++;
+				// ... check if the current solution can be accepted
+
+				if (converged && !statusChanged) break;
+				trials++;
+			}
+		}
+
+		else if (stepSizing == BRF)
+		{
+			int counter = 0;
+			while (minErrorNorm >= oldErrorNorm)
+			{
+				dl *= 0.25;
+				if (dl < 0.001) break;
+				lamda = findStepSize(trials, currentTime);
+				updateSolution(lamda);
+				errorNorm = minErrorNorm; // */
+			}
+			if (reportTrials) reportTrial(trials, lamda);
+			converged = hasConverged();
+
+			// ... if close to convergence then check for any link status changes
+
+			if (converged) // || errorNorm < ErrorThreshold )
+			{
+				statusChanged = linksChangedStatus();
+			}
+
+			// ... check if the current solution can be accepted
+
+			if (converged && !statusChanged) break;
+			trials++;
+		}
+		else
+		{
+			lamda = findStepSize(trials, currentTime);
+			updateSolution(lamda);
+
+			// ... check for convergence
+
+			if (reportTrials) reportTrial(trials, lamda);
+			converged = hasConverged();
+
+			// ... if close to convergence then check for any link status changes
+
+			if (converged) //|| errorNorm < ErrorThreshold )
+			{
+				statusChanged = linksChangedStatus();
+			}
+
+			// ... check if the current solution can be accepted
+
+			if (converged && !statusChanged) break;
+			trials++;
+		}
     }
     //if ( reportTrials ) network->msgLog << s_HlossEvals << hLossEvalCount;
     if ( trials > trialsLimit ) return HydSolver::FAILED_NO_CONVERGENCE;
@@ -341,44 +431,79 @@ void GGASolver::findFlowChanges()
 
 //  Find how much of the head and flow changes to apply to a new solution.
 
-double GGASolver::findStepSize(int trials)
+double GGASolver::findStepSize(int trials, int currentTime)
 {
     // ... find the new error norm at full step size
 
     double lamda = 1.0;
-    errorNorm = findErrorNorm(lamda);
+	errorNorm = findErrorNorm(lamda, currentTime, tstep);
 
     if ( stepSizing == RELAXATION && oldErrorNorm < ErrorThreshold )
     {
         lamda = 0.5;
-        double errorNorm2 = findErrorNorm(lamda);
+		double errorNorm2 = findErrorNorm(lamda, currentTime, tstep);
         if ( errorNorm2 < errorNorm ) errorNorm = errorNorm2;
         else
         {
             lamda = 1.0;
-            errorNorm = findErrorNorm(lamda);
+			errorNorm = findErrorNorm(lamda, currentTime, tstep);
         }
     }
 
     // ... if called for, implement a line search procedure
     //     to find the best step size lamda to take
 
-    if ( stepSizing == LINESEARCH && trials > 1 )
-    {
-    ////////////  TO BE IMPLEMENTED  ///////////////
-    }
-    return lamda;
+	if (stepSizing == BRF || stepSizing == ARF)
+	{
+		{
+			minErrorNorm = 0;
+			double testError = 1000000;
+			lambdaNumber = 1 / dl;
+			Lambda.resize(lambdaNumber, 0);
+
+
+			memset(&Lambda[0], 0, lambdaNumber*sizeof(double));
+
+			for (int i = 0; i < lambdaNumber; i++)
+			{
+				Lambda[i] += (i + 1)*dl;
+
+				int errorCode = findHeadChanges();
+				if (errorCode >= 0)
+				{
+					Node* node = network->node(errorCode);
+					network->msgLog << endl << s_IllConditioned << node->name;
+					return HydSolver::FAILED_ILL_CONDITIONED;
+				}
+				findFlowChanges();                  
+
+				updateSolution(Lambda[i]);
+
+				errorNorm = findErrorNorm(Lambda[i], currentTime, tstep);
+
+				if (errorNorm < testError)
+				{
+					testError = errorNorm;
+					lamda = Lambda[i];
+					updateSolution(Lambda[i]);
+				}
+			}
+			minErrorNorm = testError;
+		}
+		return lamda;
+	}
+	return lamda;
 }
 
 //-----------------------------------------------------------------------------
 
 //  Compute the error norm associated with a given step size.
 
-double GGASolver::findErrorNorm(double lamda)
+double GGASolver::findErrorNorm(double lamda, int currentTime, double tstep)
 {
     hLossEvalCount++;
     return hydBalance.evaluate(lamda, (double*)&dH[0], (double*)&dQ[0],
-                                      (double*)&xQ[0], network);
+		(double*)&xQ[0], network, currentTime, tstep);
 }
 
 //-----------------------------------------------------------------------------

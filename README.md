@@ -1,63 +1,83 @@
-﻿[![Build Status](https://api.travis-ci.org/OpenWaterAnalytics/epanet-dev.svg)](https://travis-ci.org/OpenWaterAnalytics/epanet-dev)
+# EPANET_3-PMX
+EPANET 3 Pressure Management Extension
+
+This brief guideline is prepared for users to utilize EPANET 3 Pressure Management Extension (EPANET 3 PMX). The EPANET 3 PMX is developed for hydraulically modeling pressure management (PM) in water distribution systems (WDS) in a practical way. In order to use EPANET 3 PMX, the EPANET input file should contain at least one Dynamic Pressure Reducing Valve (DPRV). Unlike the conventional Pressure Reducing Valve (PRV) model in the current EPANET version, DPRV represents the physical behavior of the PRVs accurately (Koşucu & Demirel, 2022; Prescott & Ulanicki, 2003).
+
+Please note that there are four PM methods in the literature whose names are 1. Fixed Outlet (FO) PM, 2. Time Modulated (TM) PM, 3. Flow Modulated (FM) PM, and 4. Remote Node Modulated (RNM) PM. Each method requires specific insertions and modifications in the EPANET input file. Firstly, The FO PM requires only a single outlet pressure value for PRV. Secondly, in the TM PM method, there are two outlet pressure values: day (between 05:00-01:00) and night (01:00-05:00). Thirdly, the FM PM is the PM method that modulates the PRV outlet pressure according to the flow rate of the WDS inlet. The modulation is realized through a second-order polynomial that is a*Q<sup>2</sup> + b*Q + c = PRV outlet pressure. Lastly, the RNM PM is implemented, when the outlet pressure of the PRV is modulated according to the remote node of the WDS. This method necessitates the remote node's target pressure and ID number, respectively.
+
+80 EPANET input files belonging to hydraulic models of 18 different WDSs are provided with this extension. There is no PM implementation in 18 of 80 WDSs. FO PM, FM PM, and RNM PM methods are implemented in 18 WDSs each, and TM PM is implemented in 8 WDSs. It is understood from the file names which PM method is applied (i.e., EPA3-hk-large-peaked-high-FO.inp file contains the setting of FO PM).
+
+## Usage
+1. Modify the VALVES section of the EPANET 3 input (inp) files for PM methods:
+- For Fixed Outlet PM, add:
+	```
+	[VALVES]
+	;ID		Node1		Node2	Diameter	Type		PM_Type		Setting
+	1		2010		1	400		DPRV		FO		42.5  ;
+	```
+
+- For Time Modulated PM, add:
+	```
+	[VALVES]
+	;ID		Node1		Node2	Diameter	Type  PM_Type  Day_Pressure  Night_Pressure
+	1		2010		1	400		DPRV	TM	42.5		25.5  ;
+	```
+- For Flow Modulated PM, add:
+	```
+	[VALVES]
+	;ID		Node1		Node2	Diameter	Type  PM_Type		a_FM		b_FM		c_FM
+	1		2010		1	400		DPRV	FM		0.00037110	0.00222011	25.17888967 ;
+	```
+
+- For Remote Node Modulated PM, add:
+	```
+	[VALVES]
+	;ID		Node1		Node2	Diameter	Type	PM_Type		Remote_Node_Pressure	Remote_Node
+	1		2010		1	400		DPRV	RNM			20		13150  ;
+	```
+	All the numbers above vary from one WDS to the other WDS. Implementing four PM methods depends on the valve settings on the EPANET input file.
+2. Modify lines 74 and 76 in `Core/epanet3.cpp` if the result files are wished to be saved in another location. The default location is the path where the program was run. Result files are in txt format. There are two result files:
+	1. hk-Result.txt: This file contains pressure values of significant WDS nodes, and flow rates of the WDS inlet pipe and total leakage.
+	2. Xm-Result.txt: This file includes PRV main element opening ratio.
+3. To run the command line executable under Linux/Mac enter the following command from a terminal window:
+
+	```
+	./run-epanet3 input.inp report.rpt
+
+	```
+
+	where `input.inp` is the name of a properly formatted EPANET input file and 	`report.rpt` is the name of a plain text file where results will be written. For Windows , enter the following command in a Command Prompt window:
+
+	```
+	run-epanet3 input.inp report.rpt
+
+	```
+	Alternatively, following command line could be written in Visual Studio. The path of the script is Debug => "Project" Properties => Configuration Properties => Debugging => Command Arguments:
 
 
-# epanet-dev
+	```
+	input.inp report.rpt
 
-This is a collaborative project to develop a new version of the EPANET computational engine for analyzing water distribution systems.
+	```
+4. If a user would analyze another WDSs hydraulics, lines 81, 82, 84, 141-151, 153, and 156 in core/epanet3.cpp file should also be modified.
 
-## Introduction
 
-This project seeks to develop a new version of the EPANET computational engine and its associated API that includes recent advancements and improvements in water distribution system modeling. It is currently using EPANET 3 as its working title. Written in C++, it employs an object oriented approach that allows the code to be more modular, extensible, and easier to maintain.
-
-EPANET was originally developed by the U.S. Environmental Protection Agency (USEPA) and placed in the public domain. The latest official version (2.2) can be found [here](https://www.epa.gov/water-research/epanet). The new version being developed by this project represents an independent effort that is part of the [Open Source EPANET Initiative](http://community.wateranalytics.org/t/announcement-of-an-open-source-epanet-initiative/117) and is neither supported nor endorsed by USEPA.
-
-## Building EPANET 3
-
-The source code can be compiled as both a shared library and a command-line executable. Any C++ compiler that supports the C++11 language standard can be used.
-
-To build using CMake on Linux/Mac:
-```
-mkdir build && cd build
-cmake .. && make
-```
-The shared library (`libepanet3.so`) will be found in the `/lib` sub-directory and the command-line executable (`run-epanet3`) will be in the `/bin` sub-directory.
-
-To build using CMake on Windows with Visual Studio:
+## Building
+To build, use CMake on Windows with Visual Studio (tested with Visual Studio 2013 and validated with 2019):
 ```
 mkdir build && cd build
 cmake -G "Visual Studio n yyyy" ..
 cmake --build . --config Release
 ```
-where `n yyyy` is the version and year of the Visual Studio release to use (e.g., 16 2019). Both the shared library (`epanet3.dll`) and the command-line executable (`run-epanet3.exe`) will be found in the `\bin\Release` sub-directory as will an `epanet3.lib` file needed to build applications that link to the library. 
-
-To build using CMake on Windows with MinGW:
+## Contributors
 ```
-mkdir build && cd build
-cmake -G "MinGW Makefiles" ..
-cmake --build .
+Mehmet Melih Koşucu,		Istanbul Technical University
+Mehmet Cüneyd Demirel,		Istanbul Technical University
+Mustafa Alper Özdemir,		Istanbul Technical University
+Ufuk Bal,			Istanbul Technical University
 ```
-Both the shared library (`libepanet3.dll`) and the command-line executable (`run-epanet3.exe`) will be found in the `\bin` sub-directory.
+## References
 
-## Running EPANET 3
-To run the command line executable under Linux/Mac enter the following command from a terminal window:
-```
-./run-epanet3 input.inp report.txt
-```
-where `input.inp` is the name of a properly formatted EPANET input file and `report.txt` is the name of a plain text file where results will be written. For Windows  , enter the following command in a Command Prompt window:
-```
-run-epanet3 input.inp report.txt
-```
-The EPANET 3 shared library contains an API that allows one to write custom applications by making function calls to it. A small example application can be found [here](https://github.com/OpenWaterAnalytics/epanet-dev/blob/develop/doc/Differences%20From%20EPANET2.md).
+Koşucu, M. M., & Demirel, M. C. (2022). Smart pressure management extension for EPANET: source code enhancement with a dynamic pressure reducing valve model. _Journal of Hydroinformatics_, _24_(3), 642–658. https://doi.org/10.2166/hydro.2022.172
 
-## API Reference
-
-The EPANET 3 API has a similar flavor to that of EPANET 2, but all of the functions have been re-named and require that an EPANET project first be created and included as an argument in all function calls. (This makes the API capable of analyzing several projects in parallel in a thread safe manner.) EPANET 3 is able to read EPANET 2 input files but uses a different layout for its binary results file. Thus it will not be compatible with the current EPANET 2 GUI. Details of the API, including the changes and additions made to various computational components of EPANET, can be found in the 'docs' section of this repository.
-
-You can access the full documentation at [wateranalytics.org/epanet-dev](http://wateranalytics.org/epanet-dev).
-
-## Disclaimer
-This project is still in its early developmental stage. Its robustness and the accuracy of its numerical results have not been thoroughly tested. Therefore it should not yet be used as a replacement EPANET 2 nor be used in any production code for specialized applications.
-
-## License
-
-The new version of EPANET will be distributed under the MIT license as described in the LICENSE file of this repository.
+Prescott, S. L., & Ulanicki, B. (2003). Dynamic Modeling of Pressure Reducing Valves. _Journal of Hydraulic Engineering_, _129_(10), 804–812. https://doi.org/10.1061/(ASCE)0733-9429(2003)129:10(804)

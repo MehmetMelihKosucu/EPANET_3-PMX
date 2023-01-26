@@ -1,4 +1,4 @@
-/* EPANET 3
+/* EPANET 3.1.1 Pressure Management Extension
  *
  * Copyright (c) 2016 Open Water Analytics
  * Licensed under the terms of the MIT License (see the LICENSE file for details).
@@ -224,10 +224,14 @@ void NodeParser::parseTankReact(Node* node, vector<string>& tokenList)
 
     // ... read reaction coefficient in 1/days
 
-    if ( !Utilities::parseNumber(tokens[2], tank->bulkCoeff) )
+    if ( !Utilities::parseNumber(tokens[1], tank->bulkCoeff) )
     {
-        throw InputError(InputError::INVALID_NUMBER, tokens[2]);
+        throw InputError(InputError::INVALID_NUMBER, tokens[1]);
     }
+
+    // ... convert coefficient to 1/sec
+
+    tank->bulkCoeff /= 86400;
 }
 
 //-----------------------------------------------------------------------------
