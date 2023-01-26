@@ -1,4 +1,4 @@
-/* EPANET 3
+/* EPANET 3.1.1 Pressure Management Extension
  *
  * Copyright (c) 2016 Open Water Analytics
  * Licensed under the terms of the MIT License (see the LICENSE file for details).
@@ -43,11 +43,12 @@ class Pump: public Link
     void        setInitFlow();
     void        setInitStatus(int s);
     void        setInitSetting(double s);
+
     double      getSetting(Network* nw) { return speed; }
 
     bool        isHpPump() { return pumpCurve.isConstHP(); }
 
-    void        findHeadLoss(Network* nw, double q);
+	void        findHeadLoss(Network* nw, double q);
     double      updateEnergyUsage(Network* nw, int dt);
 
     bool        changeStatus(int s, bool makeChange,

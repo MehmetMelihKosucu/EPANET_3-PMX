@@ -1,4 +1,4 @@
-/* EPANET 3
+/* EPANET 3.1.1 Pressure Management Extension
  *
  * Copyright (c) 2016 Open Water Analytics
  * Licensed under the terms of the MIT License (see the LICENSE file for details).
@@ -27,7 +27,7 @@ class GGASolver : public HydSolver
 
     GGASolver(Network* nw, MatrixSolver* ms);
     ~GGASolver();
-    int solve(double tstep, int& trials);
+    int solve(double tstep, int& trials, int currentTime);
 
   private:
 
@@ -35,6 +35,7 @@ class GGASolver : public HydSolver
     int        linkCount;         // number of network links
     int        hLossEvalCount;    // number of head loss evaluations
     int        stepSizing;        // Newton step sizing method
+	int        lambdaNumber;
 
     int        trialsLimit;       // limit on number of trials
     bool       reportTrials;      // report summary of each trial
@@ -44,6 +45,8 @@ class GGASolver : public HydSolver
     double     flowRatioLimit;    // allowable total flow change / total flow
     double     tstep;             // time step (sec)
     double     theta;             // time weighting constant
+	double     minErrorNorm;
+	double     dl;
 
     double     errorNorm;         // solution error norm
     double     oldErrorNorm;      // previous error norm
@@ -52,6 +55,7 @@ class GGASolver : public HydSolver
     std::vector<double> dH;       // head change at each node (ft)
     std::vector<double> dQ;       // flow change in each link (cfs)
     std::vector<double> xQ;       // node flow imbalances (cfs)
+	std::vector<double> Lambda;
 
     // Functions that assemble linear equation coefficients
     void   setFixedGradeNodes();
@@ -63,12 +67,12 @@ class GGASolver : public HydSolver
     // Functions that update the hydraulic solution
     int    findHeadChanges();
     void   findFlowChanges();
-    double findStepSize(int trials);
+	double findStepSize(int trials, int currentTime);
     void   updateSolution(double lamda);
 
     // Functions that check for convergence
     void   setConvergenceLimits();
-    double findErrorNorm(double lamda);
+	double findErrorNorm(double lamda, int currentTime, double tstep);
     bool   hasConverged();
     bool   linksChangedStatus();
     void   reportTrial(int trials, double lamda);

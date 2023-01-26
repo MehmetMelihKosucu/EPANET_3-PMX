@@ -1,4 +1,4 @@
-/* EPANET 3
+/* EPANET 3.1.1 Pressure Management Extension
  *
  * Copyright (c) 2016 Open Water Analytics
  * Licensed under the terms of the MIT License (see the LICENSE file for details).
@@ -7,6 +7,8 @@
 
 #include "demand.h"
 #include "pattern.h"
+#include <random>
+#include <iostream>
 
 //-----------------------------------------------------------------------------
 
@@ -32,6 +34,8 @@ Demand::~Demand() {}
 double Demand::getFullDemand(double multiplier, double patternFactor)
 {
     if ( timePattern ) patternFactor = timePattern->currentFactor();
-    fullDemand = multiplier * baseDemand * patternFactor;
+	
+	fullDemand = multiplier * baseDemand * patternFactor;
+	
     return fullDemand;
 }

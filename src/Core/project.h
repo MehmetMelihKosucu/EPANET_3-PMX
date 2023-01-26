@@ -1,4 +1,4 @@
-/* EPANET 3
+/* EPANET 3.1.1 Pressure Management Extension
  *
  * Copyright (c) 2016 Open Water Analytics
  * Licensed under the terms of the MIT License (see the LICENSE file for details).
@@ -67,10 +67,20 @@ namespace Epanet
         void  writeMsgLog(std::ostream& out);
         void  writeMsgLog();
         Network* getNetwork() { return &network; }
+		Network* setNetwork() { return &network; }
+		void pressureManagement(int t, std::ofstream& dosyam, double alfaopen, double alfaclose, double Kp, double Ki, double Kd);
+		double computeWaterLoss(double totalLoss);
+		double maxPresFunc(double maxPres);
+		void lasting();
+		void costFunction(double totalFlow, double everMaxPres, std::ofstream& maliyet);
+
+		
+		 // */
+	
 
       private:
 
-        Network        network;        //!< pipe network to be analyzed.
+		Network        network;        //!< pipe network to be analyzed. 
         HydEngine      hydEngine;      //!< hydraulic simulation engine.
         QualEngine     qualEngine;     //!< water quality simulation engine.
         OutputFile     outputFile;     //!< binary output file for saved results.
@@ -90,6 +100,10 @@ namespace Epanet
 
         void           finalizeSolver();
         void           closeReport();
+		double totalLeak;
+		double totalDemand;
+		double totalOutflow;
+		double totalReservoirOutflow;
     };
 }
 #endif

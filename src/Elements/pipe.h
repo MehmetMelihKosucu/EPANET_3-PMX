@@ -1,4 +1,4 @@
-/* EPANET 3
+/* EPANET 3.1.1 Pressure Management Extension
  *
  * Copyright (c) 2016 Open Water Analytics
  * Licensed under the terms of the MIT License (see the LICENSE file for details).
@@ -12,6 +12,8 @@
 #define PIPE_H_
 
 #include "Elements/link.h"
+
+#include <vector>
 
 class Network;
 
@@ -37,6 +39,7 @@ class Pipe: public Link
     void        setInitStatus(int s);
     void        setInitSetting(double s);
     void        setResistance(Network* nw);
+	void		setLossFactor();
 
     double      getRe(const double q, const double viscos);
     double      getResistance() {return resistance;}
@@ -45,7 +48,7 @@ class Pipe: public Link
     double      getSetting(Network* nw) { return roughness; }
     double      getVolume() { return 0.785398 * length * diameter * diameter; }
 
-    void        findHeadLoss(Network* nw, double q);
+	void        findHeadLoss(Network* nw, double q);
     bool        canLeak() { return leakCoeff1 > 0.0; }
     double      findLeakage(Network* nw, double h, double& dqdh);
     bool        changeStatus(int s, bool makeChange,

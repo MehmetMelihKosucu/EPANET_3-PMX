@@ -1,4 +1,4 @@
-/* EPANET 3
+/* EPANET 3.1.1 Pressure Management Extension
  *
  * Copyright (c) 2016 Open Water Analytics
  * Licensed under the terms of the MIT License (see the LICENSE file for details).
@@ -29,7 +29,8 @@ static const char* w_Effic   = "EFFIC";
 static const char* w_OPEN    = "OPEN";
 static const char* w_CLOSED  = "CLOSED";
 static const char* w_CV      = "CV";
-static const char* valveTypeWords[] = {"PRV", "PSV", "FCV", "TCV", "PBV", "GPV", 0};
+static const char* valveTypeWords[] = {"PRV", "PSV", "FCV", "TCV", "PBV", "GPV", "CCV", "DPRV", 0};
+static const char* presManagTypeWords[] = { "FO", "TM", "FM", "RNM", 0 };
 
 //-----------------------------------------------------------------------------
 //  Local functions
@@ -201,10 +202,10 @@ void LinkParser::parseReaction(Link* link, int type, vector<string>& tokenList)
         throw InputError(InputError::INVALID_NUMBER, tokens[1]);
     }
 
-    // ... save reaction coeff.
+    // ... save reaction coeff. converted to 1/sec
 
-    if      (type == Link::BULK) pipe->bulkCoeff = x;
-    else if (type == Link::WALL) pipe->wallCoeff = x;
+    if      (type == Link::BULK) pipe->bulkCoeff = x / SECperDAY;
+    else if (type == Link::WALL) pipe->wallCoeff = x / SECperDAY;
 }
 
 //-----------------------------------------------------------------------------
@@ -360,60 +361,142 @@ void parsePumpData(Pump* pump, Network* nw, vector<string>& tokenList)
 
 void parseValveData(Valve* valve, Network* network, vector<string>& tokenList)
 {
-    // Contents of tokenList are:
-    // 0 - valve ID
-    // 1 - upstream node ID
-    // 2 - downstream node ID
-    // 3 - diameter
-    // 4 - valve type
-    // 5 - valve setting
-    // 6 - minor loss coeff. (optional)
+	// Contents of tokenList are:
+	// 0 - valve ID
+	// 1 - upstream node ID
+	// 2 - downstream node ID
+	// 3 - diameter
+	// 4 - valve type
 
-    // ... check for enough input tokens
+	/* if valve type is not DPRV
+	// 5 - valve setting
+	// 6 - minor loss coeff. (optional) 
+	// 7 - valve setting pattern (optional) */
 
-    if ( tokenList.size() < 6 ) throw InputError(InputError::TOO_FEW_ITEMS, "");
-    string* tokens = &tokenList[0];
+	/*else if valve type is DPRV
+	// 5 - valve setting = Pressure Management Type
+	*/
 
-    // ... read diameter
+	// ... check for enough input tokens
 
-    if ( !Utilities::parseNumber(tokens[3], valve->diameter)||
-         valve->diameter <= 0.0 )
-    {
-        throw InputError(InputError::INVALID_NUMBER, tokens[3]);
-    }
+	if (tokenList.size() < 6) throw InputError(InputError::TOO_FEW_ITEMS, "");
+	string* tokens = &tokenList[0];
 
-    // ... read valve type
+	// ... read diameter
 
-    int vType = Utilities::findMatch(tokens[4], valveTypeWords);
-    if ( vType < 0 ) throw InputError(InputError::INVALID_KEYWORD, tokens[4]);
-    valve->valveType = (Valve::ValveType)vType;
+	if (!Utilities::parseNumber(tokens[3], valve->diameter) ||
+		valve->diameter <= 0.0)
+	{
+		throw InputError(InputError::INVALID_NUMBER, tokens[3]);
+	}
 
-    // ... read index of head loss curve for General Purpose Valve
+	// ... read valve type
 
-    if ( valve->valveType == Valve::GPV )
-    {
-        int c = network->indexOf(Element::CURVE, tokens[5]);
-        if ( c < 0 ) throw InputError(InputError::UNDEFINED_OBJECT, tokens[5]);
-        valve->initSetting = c;
-    }
+	int vType = Utilities::findMatch(tokens[4], valveTypeWords);
+	if (vType < 0) throw InputError(InputError::INVALID_KEYWORD, tokens[4]);
+	valve->valveType = (Valve::ValveType)vType;
 
-    // ... read numerical setting for other types of valves
-    else
-    {
-        if ( !Utilities::parseNumber(tokens[5], valve->initSetting) )
-        {
-            throw InputError(InputError::INVALID_NUMBER, tokens[5]);
-        }
-    }
+	if (valve->valveType != Valve::DPRV)
+	{
+		// ... read index of head loss curve for General Purpose Valve
 
-    // ... read optional minor loss coeff.
+		if (valve->valveType == Valve::GPV)
+		{
+			int c = network->indexOf(Element::CURVE, tokens[5]);
+			if (c < 0) throw InputError(InputError::UNDEFINED_OBJECT, tokens[5]);
+			valve->initSetting = c;
+		}
 
-    if ( tokenList.size() > 6 )
-    {
-        if ( !Utilities::parseNumber(tokens[6], valve->lossCoeff) ||
-             valve->lossCoeff < 0.0 )
-        {
-            throw InputError(InputError::INVALID_NUMBER, tokens[6]);
-        }
-    }
+		// ... read numerical setting for other types of valves
+		else
+		{
+			if (!Utilities::parseNumber(tokens[5], valve->initSetting))
+			{
+				throw InputError(InputError::INVALID_NUMBER, tokens[5]);
+			}
+		}
+
+		// ... read optional minor loss coeff.
+
+		if (tokenList.size() > 6)
+		{
+			if (!Utilities::parseNumber(tokens[6], valve->lossCoeff) ||
+				valve->lossCoeff < 0.0)
+			{
+				throw InputError(InputError::INVALID_NUMBER, tokens[6]);
+			}
+		}
+
+		// read optional setting pattern
+
+		if (valve->valveType != Valve::PRV && tokenList.size() > 7 && tokens[7] != "*")
+		{
+			valve->settingPattern = network->pattern(tokens[7]);
+			if (!valve->settingPattern)
+			{
+				throw InputError(InputError::UNDEFINED_OBJECT, tokens[7]);
+			} // */
+		}
+	}
+	else
+	{
+		int pmType = Utilities::findMatch(tokens[5], presManagTypeWords);
+		if (pmType < 0) throw InputError(InputError::INVALID_KEYWORD, tokens[5]);
+		valve->presManagType = (Valve::PresManagType)pmType;
+
+		// ... read fixed outlet pressure value.
+
+		if (valve->presManagType == Valve::FO && tokenList.size() > 6)
+		{
+			if (!Utilities::parseNumber(tokens[6], valve->fixedOutletPressure) || valve->fixedOutletPressure < 0.0)
+			{
+				throw InputError(InputError::INVALID_NUMBER, tokens[6]);
+			}
+		}
+
+		else if (valve->presManagType == Valve::TM && tokenList.size() > 7)
+		{
+			if (!Utilities::parseNumber(tokens[6], valve->dayPressure) || valve->dayPressure < 0.0)
+			{
+				throw InputError(InputError::INVALID_NUMBER, tokens[6]);
+			}
+			if (!Utilities::parseNumber(tokens[7], valve->nightPressure) || valve->nightPressure < 0.0)
+			{
+				throw InputError(InputError::INVALID_NUMBER, tokens[7]);
+			}
+		}
+
+		else if (valve->presManagType == Valve::FM && tokenList.size() > 8)
+		{
+			if (!Utilities::parseNumber(tokens[6], valve->a_FM))
+			{
+				throw InputError(InputError::INVALID_NUMBER, tokens[6]);
+			}
+			if (!Utilities::parseNumber(tokens[7], valve->b_FM) || valve->b_FM < 0.0)
+			{
+				throw InputError(InputError::INVALID_NUMBER, tokens[7]);
+			}
+			if (!Utilities::parseNumber(tokens[8], valve->c_FM) || valve->c_FM < 0.0)
+			{
+				throw InputError(InputError::INVALID_NUMBER, tokens[8]);
+			}
+		}
+
+		else if (valve->presManagType == Valve::RNM && tokenList.size() > 7)
+		{
+			if (!Utilities::parseNumber(tokens[6], valve->rnmPressure) || valve->rnmPressure < 0.0)
+			{
+				throw InputError(InputError::INVALID_NUMBER, tokens[6]);
+			}
+			
+			valve->remoteNode = network->node(tokens[7]);
+			if (valve->remoteNode == nullptr) throw InputError(InputError::UNDEFINED_OBJECT, tokens[7]);
+
+			/*if (!Utilities::findMatch(tokens[7], valve->remoteNode))
+			{
+				throw InputError(InputError::UNDEFINED_OBJECT, tokens[7]);
+			} // */
+		}
+	}
 }
+

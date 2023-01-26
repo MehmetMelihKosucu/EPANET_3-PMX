@@ -1,4 +1,4 @@
-/* EPANET 3
+/* EPANET 3.1.1 Pressure Management Extension
  *
  * Copyright (c) 2016 Open Water Analytics
  * Distributed under the MIT License (see the LICENSE file for details).
@@ -71,7 +71,7 @@ double Emitter::findFlowRate(double h, double& dqdh)
 {
     dqdh = 0.0;
     if ( h <= 0.0 ) return 0.0;
-    double a = flowCoeff;
+	double a = flowCoeff;
     if (timePattern) a *= timePattern->currentFactor();
     double q = a * pow(h, expon);
     dqdh = expon * q / h;

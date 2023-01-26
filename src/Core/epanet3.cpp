@@ -1,4 +1,4 @@
-/* EPANET 3
+﻿/* EPANET 3.1.1 Pressure Management Extension
  *
  * Copyright (c) 2016 Open Water Analytics
  * Distributed under the MIT License (see the LICENSE file for details).
@@ -6,7 +6,7 @@
  */
 
 ///////////////////////////////////////////////
-// Implementation of EPANET 3's API library  //
+// Implementation of EPANET 3.1's API library  //
 ///////////////'''''///////////////////////////
 
 // TO DO:
@@ -18,14 +18,36 @@
 #include "Core/datamanager.h"
 #include "Core/constants.h"
 #include "Core/error.h"
+#include "Core/network.h"
+#include "Core/hydengine.h"
+#include "Core/hydbalance.h"
+#include "Elements/valve.h"
+#include "Elements/pipe.h"
+#include "Elements/pump.h"
+#include "Elements/valve.h"
+#include "Elements/pumpcurve.h"
+#include "Elements/control.h"
+#include "Elements/junction.h"
+#include "Elements/tank.h"
+#include "Elements/link.h"
 #include "Utilities/utilities.h"
+#include "rwcggasolver.h"
+#include "matrixsolver.h"
+#include "linkparser.h"
 
-#include <iostream>
+#include <cstring>
+#include <cmath>
+#include <limits>
+#include <iostream>   //for debugging
 #include <iomanip>
-#include <time.h>
+#include <algorithm>
 #include <string>
+#include <time.h>
+#include <vector>
+
 
 using namespace Epanet;
+using namespace std;
 
 #define project(p) ((Project *)p)
 
@@ -49,8 +71,34 @@ int EN_runEpanet(const char* inpFile, const char* rptFile, const char* outFile)
     Project p;
     int err = 0;
 
+	std::ofstream pressureAndFlowOutFile("hk-Result.txt"); // The directory could be changed according to your PC.
+
+	std::ofstream valveOpeningFile("Xm-Result.txt");  // */
+
+	double alfaopen = 0.000001;
+	double alfaclose = 0.000001;
+
+	int IndexV1, IndexJ1, Index13150, Index12957, IndexJ1552; // Hadımköy
+	double flowV1, presJ1, pres13150, pres12957, pres1552;
+
+	pressureAndFlowOutFile << "Time" << "\t\t" << "Inlet_Flow_Rate_(l/s)" << "\t\t" << "Pressure_1_(m)" << "\t\t" << "Pressure_13150_(m)" << "\t\t" << "Pressure_12957_(m)" << "\t\t" << "Pressure_1552_(m)" << "\t\t" << "Leakage_(l/s)" << "\n";
+
+	// Output files in text format, and variables which are existing in output file 
+
     // ... initialize execution time clock
     clock_t start_t = clock();
+
+	double totalLoss = 0;
+
+	double totalFlow = 0;
+
+	// PID Parameters for control
+
+	double Kp, Ki, Kd;
+
+	Kp = -0.000001365;
+	Ki = 0.000000104;
+	Kd = 0.00000067527;
 
     for (;;)
     {
@@ -69,20 +117,53 @@ int EN_runEpanet(const char* inpFile, const char* rptFile, const char* outFile)
         // ... step through each time period
         int t = 0;
         int tstep = 0;
+
+		double maxPres = 0, everMaxPres = 0;
+
         do
         {
             std::cout << "\r    Solving network at "                     //r
-                << Utilities::getTime(t+tstep) << " hrs ...        ";
-
+                << Utilities::getTime(t+tstep) << " hrs ...        ";	
+	
+			p.pressureManagement(t, valveOpeningFile, alfaopen, alfaclose, Kp, Ki, Kd);
+	
             // ... run solver to compute hydraulics
             err = p.runSolver(&t);
-            p.writeMsgLog();
-
+            //p.writeMsgLog();
+			
             // ... advance solver to next period in time while solving for water quality
             if ( !err ) err = p.advanceSolver(&tstep);
+
+			totalLoss = p.computeWaterLoss(totalLoss);
+
+			// Hadımköy WDN
+
+			int ErrorV1 = EN_getLinkIndex("1", &IndexV1, p.getNetwork());
+			int ErrorJ1 = EN_getNodeIndex("1", &IndexJ1, p.getNetwork());
+			int Error13150 = EN_getNodeIndex("13150", &Index13150, p.getNetwork());
+			int Error12957 = EN_getNodeIndex("12957", &Index12957, p.getNetwork());
+			int ErrorJ1552 = EN_getNodeIndex("1552", &IndexJ1552, p.getNetwork());
+
+			double ErrorValV1 = EN_getLinkValue(IndexV1, EN_FLOW, &flowV1, p.getNetwork());
+			double ErrorValJ1 = EN_getNodeValue(IndexJ1, EN_PRESSURE, &presJ1, p.getNetwork());
+			double ErrorVal13150 = EN_getNodeValue(Index13150, EN_PRESSURE, &pres13150, p.getNetwork());
+			double ErrorVal12957 = EN_getNodeValue(Index12957, EN_PRESSURE, &pres12957, p.getNetwork()); 
+			double ErrorValJ1552 = EN_getNodeValue(IndexJ1552, EN_PRESSURE, &pres1552, p.getNetwork());
+
+			totalFlow += flowV1*tstep * 365 / (7 * 1000); // Compute total annual inlet water volume (m3)
+			
+			if ( t%30 == 0) // Extract the output parameters per 30 seconds.
+				pressureAndFlowOutFile << Utilities::getTime(t) << "\t\t" << flowV1 << "\t\t" << presJ1 << "\t\t" << pres13150 << "\t\t" << pres12957 << "\t\t" << pres1552 << "\t\t" << totalLoss << "\n"; // */ 
+
+			p.lasting();
+			
         } while (tstep > 0 && !err );
+
+		pressureAndFlowOutFile << totalFlow;
+
         break;
     }
+
 
     // ... simulation was successful
     if ( !err )
@@ -102,15 +183,15 @@ int EN_runEpanet(const char* inpFile, const char* rptFile, const char* outFile)
         std::cout << "\n    Writing report ...                           ";
         err = p.writeReport();
         std::cout << "\n    Simulation completed.                         \n";
-        std::cout << "\n... EPANET completed in " << ss.str() << "\n";
-    }
-
+        std::cout << "\n... EPANET completed in " << ss.str() << "\n"; //
+	} 
+	
     if ( err )
     {
         p.writeMsgLog();
         std::cout << "\n\n    There were errors. See report file for details.\n";
         return err;
-    }
+    } 
     return 0;
 }
 
@@ -206,7 +287,7 @@ int EN_initSolver(int initFlows, EN_Project p)
 
 int EN_runSolver(int* t, EN_Project p)
 {
-    return project(p)->runSolver(t);
+	return project(p)->runSolver(t);
 }
 
 //-----------------------------------------------------------------------------
@@ -337,6 +418,11 @@ int EN_getLinkNodes(int index, int* fromNode, int* toNode, EN_Project p)
 int EN_getLinkValue(int index, int param, double* value, EN_Project p)
 {
    return DataManager::getLinkValue(index, param, value, project(p)->getNetwork());
+}
+
+int EN_setLinkValue(int index, int param, double value, EN_Project p)
+{
+	return DataManager::setLinkValue(index, param, value, project(p)->setNetwork());
 }
 
 
