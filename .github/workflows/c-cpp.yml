@@ -23,12 +23,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v3
-    - name: config shared=${{ matrix.shared }}
-    run: >-
-     cmake
-     -Bbuild
-     -DBUILD_SHARED_LIBS=${{ matrix.shared }}        
-     - name: build
-     run: cmake --build build --parallel
-     - name: test
-     run: ctest --test-dir build -V
+    - name: build
+      run: cmake --build build --parallel
+    - name: test
+      run: ctest --test-dir build -V
