@@ -12,7 +12,7 @@ on:
       - "**.h"
       - "**/CMakeLists.txt"
       - "**.cmake"
-      - ".github/workflows/ci.yml"
+      - ".github/workflows/c-cpp.yml"
 
 jobs:
   core:
