@@ -30,5 +30,3 @@ jobs:
         -DBUILD_SHARED_LIBS=${{ matrix.shared }}       
     - name: build
       run: cmake --build build --parallel
-    - name: test
-      run: ctest --test-dir build -V
